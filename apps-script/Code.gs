@@ -16,8 +16,8 @@ var SHEET_MARKS = 'Marks';
 var SHEET_MARK_TYPES = 'MarkTypes';
 
 var HEADERS = {
-  Questions: ['id', 'type', 'front', 'back', 'category'],
-  Records: ['timestamp', 'id', 'mode', 'result'],
+  Questions: ['id', 'front', 'back', 'category'],
+  Records: ['timestamp', 'id', 'result'],
   Marks: ['timestamp', 'id', 'markType'],
   MarkTypes: ['name']
 };
@@ -126,7 +126,7 @@ function getMarkTypes_() {
 
 function addRecord_(payload) {
   var sheet = getSheet_(SHEET_RECORDS);
-  sheet.appendRow([new Date(), payload.id, payload.mode, payload.result]);
+  sheet.appendRow([new Date(), payload.id, payload.result]);
 }
 
 function addMark_(payload) {
@@ -147,7 +147,7 @@ function addQuestions_(payload) {
   var questions = payload.questions || [];
   questions.forEach(function (q) {
     var id = q.id && String(q.id).trim() ? q.id : Utilities.getUuid();
-    sheet.appendRow([id, q.type, q.front, q.back, q.category || '']);
+    sheet.appendRow([id, q.front, q.back, q.category || '']);
   });
 }
 
@@ -174,7 +174,6 @@ function getStats_() {
         correct: 0,
         partial: 0,
         wrong: 0,
-        reviewed: 0,
         marks: {}
       };
     }
@@ -183,14 +182,10 @@ function getStats_() {
 
   records.forEach(function (r) {
     var s = ensure(r.id);
-    if (r.mode === 'quiz') {
-      s.attempts += 1;
-      if (r.result === 'correct') s.correct += 1;
-      else if (r.result === 'partial') s.partial += 1;
-      else if (r.result === 'wrong') s.wrong += 1;
-    } else if (r.mode === 'word') {
-      s.reviewed += 1;
-    }
+    s.attempts += 1;
+    if (r.result === 'correct') s.correct += 1;
+    else if (r.result === 'partial') s.partial += 1;
+    else if (r.result === 'wrong') s.wrong += 1;
   });
 
   marks.forEach(function (m) {

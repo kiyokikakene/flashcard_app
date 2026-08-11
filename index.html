@@ -83,8 +83,6 @@
   .hint { text-align: center; font-size: 12px; color: var(--sub); margin-top: 8px; }
   .study-actions { display: flex; gap: 10px; margin-top: 16px; }
   .study-actions .btn { flex: 1; }
-  .btn.known { background: var(--correct); }
-  .btn.unknown { background: var(--wrong); }
   .quiz-q { font-size: 19px; line-height: 1.6; margin-bottom: 14px; }
   .result-badge { font-size: 42px; font-weight: 800; text-align: center; margin: 10px 0; }
   .result-badge.correct { color: var(--correct); }
@@ -254,15 +252,11 @@
     return 'wrong';
   }
 
-  /* ---------- priority score for 苦手優先 ---------- */
+  /* ---------- priority score for 苦手優先 (問題モードの正答率を横断的に使う) ---------- */
   function priorityScore(q) {
     var s = state.stats[q.id];
-    if (q.type === '問題') {
-      if (!s || s.attempts === 0) return 2;
-      return (s.wrong + s.partial * 0.5) / s.attempts;
-    }
-    if (!s || !s.reviewed) return 2;
-    return 1 / (s.reviewed + 1);
+    if (!s || !s.attempts) return 2;
+    return (s.wrong + s.partial * 0.5) / s.attempts;
   }
 
   function categories() {
@@ -272,7 +266,7 @@
   }
 
   function filteredQuestions() {
-    var list = state.questions.filter(function (q) { return q.type === state.filter.mode; });
+    var list = state.questions.slice();
     if (state.filter.category) list = list.filter(function (q) { return q.category === state.filter.category; });
     if (state.filter.markType) {
       list = list.filter(function (q) {
@@ -327,15 +321,11 @@
         }).join('') + '</select></div>';
     }
 
-    var wordCount = state.questions.filter(function (q) { return q.type === '単語'; }).length;
-    var quizCount = state.questions.filter(function (q) { return q.type === '問題'; }).length;
     var cats = categories();
     var marks = state.markTypes;
 
     html += '<div class="summary">' +
-      '<div class="box"><div class="n">' + wordCount + '</div><div class="l">単語</div></div>' +
-      '<div class="box"><div class="n">' + quizCount + '</div><div class="l">問題</div></div>' +
-      '<div class="box"><div class="n">' + state.questions.length + '</div><div class="l">合計</div></div>' +
+      '<div class="box"><div class="n">' + state.questions.length + '</div><div class="l">登録問題数</div></div>' +
       '</div>';
 
     html += '<div class="card">';
@@ -430,12 +420,7 @@
       html += '<div class="flashcard' + (s.flipped ? ' back' : '') + '" id="flashcard">' +
         esc(s.flipped ? q.back : q.front) + '</div>';
       html += '<div class="hint">タップで裏返す</div>';
-      if (s.flipped) {
-        html += '<div class="study-actions">' +
-          '<button class="btn unknown" id="btn-unknown">まだ</button>' +
-          '<button class="btn known" id="btn-known">覚えた</button>' +
-          '</div>';
-      }
+      html += '<div class="study-actions"><button class="btn block" id="btn-next-word">次へ</button></div>';
     } else {
       html += '<div class="card"><div class="quiz-q">' + esc(q.front) + '</div>';
       if (!s.lastResult) {
@@ -472,9 +457,7 @@
     if (s.mode === '単語') {
       var card = document.getElementById('flashcard');
       card.addEventListener('click', function () { s.flipped = !s.flipped; renderStudy(); });
-      var kb = document.getElementById('btn-known'), ub = document.getElementById('btn-unknown');
-      if (kb) kb.addEventListener('click', function () { recordWord(q.id, 'known'); nextCard(); });
-      if (ub) ub.addEventListener('click', function () { recordWord(q.id, 'unknown'); nextCard(); });
+      document.getElementById('btn-next-word').addEventListener('click', nextCard);
     } else {
       var submitBtn = document.getElementById('btn-submit');
       if (submitBtn) {
@@ -496,17 +479,12 @@
     var inp = document.getElementById('quiz-input');
     var result = gradeQuiz(q.back, inp.value);
     state.session.lastResult = result;
-    api.post('addRecord', { id: q.id, mode: 'quiz', result: result }).catch(function (e) { toast(e.message); });
+    api.post('addRecord', { id: q.id, result: result }).catch(function (e) { toast(e.message); });
     bumpLocalStat(q.id, function (s) {
       s.attempts++;
       if (result === 'correct') s.correct++; else if (result === 'partial') s.partial++; else s.wrong++;
     });
     renderStudy();
-  }
-
-  function recordWord(id, result) {
-    api.post('addRecord', { id: id, mode: 'word', result: result }).catch(function (e) { toast(e.message); });
-    bumpLocalStat(id, function (s) { s.reviewed++; });
   }
 
   function markQuestion(id, markType) {
@@ -519,7 +497,7 @@
   }
 
   function bumpLocalStat(id, fn) {
-    if (!state.stats[id]) state.stats[id] = { attempts: 0, correct: 0, partial: 0, wrong: 0, reviewed: 0, marks: {} };
+    if (!state.stats[id]) state.stats[id] = { attempts: 0, correct: 0, partial: 0, wrong: 0, marks: {} };
     fn(state.stats[id]);
   }
 
@@ -537,19 +515,18 @@
       main.innerHTML = '<div class="empty">データがありません</div>';
       return;
     }
-    var totalAttempts = 0, totalCorrect = 0, totalPartial = 0, totalWrong = 0, totalReviewed = 0;
+    var totalAttempts = 0, totalCorrect = 0, totalPartial = 0, totalWrong = 0;
     Object.keys(state.stats).forEach(function (id) {
       var s = state.stats[id];
       totalAttempts += s.attempts || 0;
       totalCorrect += s.correct || 0;
       totalPartial += s.partial || 0;
       totalWrong += s.wrong || 0;
-      totalReviewed += s.reviewed || 0;
     });
     var acc = totalAttempts ? Math.round((totalCorrect / totalAttempts) * 100) : 0;
 
     var html = '<div class="summary">' +
-      box(totalAttempts, '解答回数') + box(acc + '%', '完答率') + box(totalReviewed, '単語復習回数') +
+      box(totalAttempts, '解答回数') + box(acc + '%', '完答率') +
       '</div>';
 
     html += '<div class="card"><h2>判定内訳</h2>' +
@@ -571,7 +548,6 @@
     }
 
     var quizRows = state.questions
-      .filter(function (q) { return q.type === '問題'; })
       .map(function (q) {
         var s = state.stats[q.id] || { attempts: 0, correct: 0 };
         var rate = s.attempts ? Math.round((s.correct / s.attempts) * 100) : null;
@@ -638,7 +614,7 @@
 
       html += '<div class="card"><h2>CSVインポート（' + esc(getActiveDeck().name) + '）</h2>' +
         '<div style="font-size:12px;color:var(--sub);margin-bottom:8px">' +
-        '列: id(空欄可), type(単語 or 問題), front, back, category(任意)。back は複数解答時 | 区切り。' +
+        '列: id(空欄可), front, back, category(任意)。back は複数解答時 | 区切り。' +
         '</div>' +
         '<input type="file" id="csv-file" accept=".csv,text/csv">' +
         '<div style="margin-top:10px"><button class="btn secondary" id="btn-import-csv" disabled>インポート実行</button></div>' +
@@ -761,7 +737,6 @@
 
   var HEADER_ALIASES = {
     id: ['id'],
-    type: ['type', '種別', 'タイプ'],
     front: ['front', '表', '問題', '質問'],
     back: ['back', '裏', '解答', '答え', '回答'],
     category: ['category', 'カテゴリ', 'カテゴリー', '分類']
@@ -780,11 +755,8 @@
       throw new Error('front / back 列が見つかりません');
     }
     return rows.slice(1).map(function (r) {
-      var type = colIndex.type !== -1 ? r[colIndex.type].trim() : '単語';
-      if (type !== '単語' && type !== '問題') type = '単語';
       return {
         id: colIndex.id !== -1 ? r[colIndex.id].trim() : '',
-        type: type,
         front: r[colIndex.front] || '',
         back: r[colIndex.back] || '',
         category: colIndex.category !== -1 ? (r[colIndex.category] || '').trim() : ''
