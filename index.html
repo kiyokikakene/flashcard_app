@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>単語帳</title>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --card-bg: #ffffff;
+    --text: #1c1e21;
+    --sub: #6b7280;
+    --accent: #3b6bf5;
+    --accent-weak: #e8edff;
+    --correct: #1f9d55;
+    --partial: #d99a1b;
+    --wrong: #d9363e;
+    --border: #e2e4e9;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Yu Gothic", sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #app { display: flex; flex-direction: column; height: 100dvh; max-width: 480px; margin: 0 auto; background: var(--bg); }
+  header {
+    padding: 14px 16px; font-weight: 700; font-size: 18px;
+    border-bottom: 1px solid var(--border); background: var(--card-bg);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  header .refresh { font-size: 13px; color: var(--accent); cursor: pointer; }
+  main { flex: 1; overflow-y: auto; padding: 16px; padding-bottom: 90px; }
+  nav.bottom {
+    position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+    width: 100%; max-width: 480px; display: flex;
+    background: var(--card-bg); border-top: 1px solid var(--border);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  nav.bottom button {
+    flex: 1; padding: 12px 0 10px; background: none; border: none;
+    font-size: 12px; color: var(--sub); display: flex; flex-direction: column; align-items: center; gap: 4px;
+  }
+  nav.bottom button.active { color: var(--accent); font-weight: 700; }
+  nav.bottom button .ic { font-size: 18px; }
+  h2 { font-size: 16px; margin: 0 0 12px; }
+  .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  label { display: block; font-size: 13px; color: var(--sub); margin-bottom: 6px; }
+  select, input[type=text], input[type=url], textarea {
+    width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px;
+    font-size: 15px; background: #fff; color: var(--text);
+  }
+  textarea { resize: vertical; min-height: 90px; font-family: monospace; font-size: 13px; }
+  .btn {
+    display: inline-block; padding: 11px 18px; border-radius: 8px; border: none;
+    background: var(--accent); color: #fff; font-size: 15px; font-weight: 600; cursor: pointer;
+  }
+  .btn.secondary { background: var(--accent-weak); color: var(--accent); }
+  .btn.block { width: 100%; text-align: center; }
+  .btn:disabled { opacity: .5; }
+  .chip {
+    padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border);
+    font-size: 13px; background: #fff; cursor: pointer; color: var(--sub);
+  }
+  .chip.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .summary { display: flex; gap: 10px; margin-bottom: 14px; }
+  .summary .box { flex: 1; background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px; text-align: center; }
+  .summary .box .n { font-size: 20px; font-weight: 700; }
+  .summary .box .l { font-size: 11px; color: var(--sub); margin-top: 2px; }
+
+  /* study screen */
+  .study-wrap { display: flex; flex-direction: column; height: 100%; }
+  .progress { font-size: 13px; color: var(--sub); margin-bottom: 10px; text-align: center; }
+  .flashcard {
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: 16px;
+    min-height: 220px; display: flex; align-items: center; justify-content: center;
+    text-align: center; padding: 24px; font-size: 20px; line-height: 1.5; cursor: pointer;
+  }
+  .flashcard .cat { position: absolute; }
+  .flashcard.back { color: var(--accent); }
+  .hint { text-align: center; font-size: 12px; color: var(--sub); margin-top: 8px; }
+  .study-actions { display: flex; gap: 10px; margin-top: 16px; }
+  .study-actions .btn { flex: 1; }
+  .btn.known { background: var(--correct); }
+  .btn.unknown { background: var(--wrong); }
+  .quiz-q { font-size: 19px; line-height: 1.6; margin-bottom: 14px; }
+  .result-badge { font-size: 42px; font-weight: 800; text-align: center; margin: 10px 0; }
+  .result-badge.correct { color: var(--correct); }
+  .result-badge.partial { color: var(--partial); }
+  .result-badge.wrong { color: var(--wrong); }
+  .answer-detail { font-size: 14px; color: var(--sub); text-align: center; margin-bottom: 10px; }
+  .marks-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+  .mark-btn { font-size: 12px; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); background: #fff; cursor: pointer; }
+  .mark-btn .cnt { color: var(--accent); font-weight: 700; margin-left: 4px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--border); }
+  .bar-bg { background: var(--accent-weak); border-radius: 4px; height: 8px; overflow: hidden; }
+  .bar-fg { background: var(--accent); height: 100%; }
+  .empty { text-align: center; color: var(--sub); padding: 40px 10px; font-size: 14px; }
+  .toast {
+    position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
+    background: #1c1e21; color: #fff; padding: 10px 16px; border-radius: 8px; font-size: 13px;
+    opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 50;
+  }
+  .toast.show { opacity: .95; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <span id="header-title">単語帳</span>
+    <span class="refresh" id="btn-refresh">更新</span>
+  </header>
+  <main id="main"></main>
+  <nav class="bottom">
+    <button data-view="home" class="active"><span class="ic">🏠</span>ホーム</button>
+    <button data-view="stats"><span class="ic">📊</span>統計</button>
+    <button data-view="settings"><span class="ic">⚙️</span>設定</button>
+  </nav>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---------- storage / config ---------- */
+  var LS_URL_LEGACY = 'fc_apps_script_url';
+  var LS_DECKS = 'fc_decks';
+  var LS_ACTIVE_DECK = 'fc_active_deck';
+  var LS_QUESTIONS_CACHE = 'fc_questions_cache';
+  var LS_STATS_CACHE = 'fc_stats_cache';
+  var LS_MARKTYPES_CACHE = 'fc_marktypes_cache';
+
+  function loadDecks() { return JSON.parse(localStorage.getItem(LS_DECKS) || '[]'); }
+  function saveDecks(decks) { localStorage.setItem(LS_DECKS, JSON.stringify(decks)); }
+  function genDeckId() { return 'd' + Date.now() + Math.random().toString(36).slice(2, 7); }
+
+  function migrateLegacyUrl() {
+    var decks = loadDecks();
+    var legacy = localStorage.getItem(LS_URL_LEGACY);
+    if (legacy && !decks.length) {
+      var d = { id: genDeckId(), name: 'デフォルト', url: legacy };
+      decks = [d];
+      saveDecks(decks);
+      localStorage.setItem(LS_ACTIVE_DECK, d.id);
+      localStorage.removeItem(LS_URL_LEGACY);
+    }
+    return decks;
+  }
+
+  function getActiveDeck() {
+    var id = state.activeDeckId;
+    return (state.decks || []).filter(function (d) { return d.id === id; })[0] || null;
+  }
+  function getUrl() {
+    var d = getActiveDeck();
+    return d ? d.url : '';
+  }
+  function setActiveDeck(id) {
+    state.activeDeckId = id;
+    localStorage.setItem(LS_ACTIVE_DECK, id || '');
+    loadCacheForActiveDeck();
+  }
+  function cacheKey(base) { return base + '_' + (state.activeDeckId || 'none'); }
+  function loadCacheForActiveDeck() {
+    state.questions = JSON.parse(localStorage.getItem(cacheKey(LS_QUESTIONS_CACHE)) || '[]');
+    state.stats = JSON.parse(localStorage.getItem(cacheKey(LS_STATS_CACHE)) || '{}');
+    state.markTypes = JSON.parse(localStorage.getItem(cacheKey(LS_MARKTYPES_CACHE)) || '[]');
+  }
+
+  var state = {
+    view: 'home',
+    decks: migrateLegacyUrl(),
+    activeDeckId: localStorage.getItem(LS_ACTIVE_DECK) || null,
+    questions: [],
+    stats: {},
+    markTypes: [],
+    filter: { category: null, markType: null, mode: '単語', order: 'sequential' },
+    session: null
+  };
+  if (!state.activeDeckId && state.decks.length) {
+    state.activeDeckId = state.decks[0].id;
+    localStorage.setItem(LS_ACTIVE_DECK, state.activeDeckId);
+  }
+  loadCacheForActiveDeck();
+
+  /* ---------- api ---------- */
+  var api = {
+    get: function (action) {
+      var url = getUrl();
+      if (!url) return Promise.reject(new Error('Apps Script URLが未設定です'));
+      return fetch(url + '?action=' + action).then(function (r) { return r.json(); }).then(function (j) {
+        if (!j.ok) throw new Error(j.error || 'unknown error');
+        return j.data;
+      });
+    },
+    post: function (action, payload) {
+      var url = getUrl();
+      if (!url) return Promise.reject(new Error('Apps Script URLが未設定です'));
+      return fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: action, payload: payload })
+      }).then(function (r) { return r.json(); }).then(function (j) {
+        if (!j.ok) throw new Error(j.error || 'unknown error');
+        return j;
+      });
+    }
+  };
+
+  function toast(msg) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(function () { t.classList.remove('show'); }, 1800);
+  }
+
+  function refreshAll() {
+    if (!getUrl()) return Promise.resolve();
+    return Promise.all([api.get('questions'), api.get('stats'), api.get('markTypes')])
+      .then(function (r) {
+        state.questions = r[0] || [];
+        state.stats = r[1] || {};
+        state.markTypes = r[2] || [];
+        localStorage.setItem(cacheKey(LS_QUESTIONS_CACHE), JSON.stringify(state.questions));
+        localStorage.setItem(cacheKey(LS_STATS_CACHE), JSON.stringify(state.stats));
+        localStorage.setItem(cacheKey(LS_MARKTYPES_CACHE), JSON.stringify(state.markTypes));
+        render();
+      })
+      .catch(function (e) { toast('同期に失敗: ' + e.message); });
+  }
+
+  /* ---------- grading ---------- */
+  function normalize(s) {
+    return String(s || '').trim().toLowerCase().replace(/\s+/g, '');
+  }
+  function splitAnswers(s) {
+    return String(s || '').split(/[,、]/).map(function (x) { return x.trim(); }).filter(Boolean);
+  }
+  function gradeQuiz(back, userInput) {
+    var required = String(back || '').split('|').map(function (x) { return x.trim(); }).filter(Boolean);
+    var given = splitAnswers(userInput);
+    var matched = required.filter(function (req) {
+      return given.some(function (g) { return normalize(g) === normalize(req); });
+    }).length;
+    if (required.length <= 1) {
+      return matched >= 1 ? 'correct' : 'wrong';
+    }
+    if (matched === required.length) return 'correct';
+    if (matched > 0) return 'partial';
+    return 'wrong';
+  }
+
+  /* ---------- priority score for 苦手優先 ---------- */
+  function priorityScore(q) {
+    var s = state.stats[q.id];
+    if (q.type === '問題') {
+      if (!s || s.attempts === 0) return 2;
+      return (s.wrong + s.partial * 0.5) / s.attempts;
+    }
+    if (!s || !s.reviewed) return 2;
+    return 1 / (s.reviewed + 1);
+  }
+
+  function categories() {
+    var set = {};
+    state.questions.forEach(function (q) { if (q.category) set[q.category] = true; });
+    return Object.keys(set);
+  }
+
+  function filteredQuestions() {
+    var list = state.questions.filter(function (q) { return q.type === state.filter.mode; });
+    if (state.filter.category) list = list.filter(function (q) { return q.category === state.filter.category; });
+    if (state.filter.markType) {
+      list = list.filter(function (q) {
+        var s = state.stats[q.id];
+        return s && s.marks && s.marks[state.filter.markType] > 0;
+      });
+    }
+    if (state.filter.order === 'random') {
+      list = list.slice();
+      for (var i = list.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var tmp = list[i]; list[i] = list[j]; list[j] = tmp;
+      }
+    } else if (state.filter.order === 'priority') {
+      list = list.slice().sort(function (a, b) { return priorityScore(b) - priorityScore(a); });
+    }
+    return list;
+  }
+
+  /* ---------- views ---------- */
+  var main = document.getElementById('main');
+  var headerTitle = document.getElementById('header-title');
+
+  function render() {
+    if (state.view === 'home') renderHome();
+    else if (state.view === 'stats') renderStats();
+    else if (state.view === 'settings') renderSettings();
+    else if (state.view === 'study') renderStudy();
+    document.querySelectorAll('nav.bottom button').forEach(function (b) {
+      b.classList.toggle('active', b.dataset.view === (state.view === 'study' ? 'home' : state.view));
+    });
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function renderHome() {
+    headerTitle.textContent = '単語帳';
+    if (!state.decks.length) {
+      main.innerHTML = '<div class="empty">まずは設定画面でデッキ（スプレッドシート）を登録してね</div>';
+      return;
+    }
+
+    var html = '';
+    if (state.decks.length > 1) {
+      html += '<div class="card"><label>デッキ</label><select id="deck-select">' +
+        state.decks.map(function (d) {
+          return '<option value="' + esc(d.id) + '"' + (d.id === state.activeDeckId ? ' selected' : '') + '>' + esc(d.name) + '</option>';
+        }).join('') + '</select></div>';
+    }
+
+    var wordCount = state.questions.filter(function (q) { return q.type === '単語'; }).length;
+    var quizCount = state.questions.filter(function (q) { return q.type === '問題'; }).length;
+    var cats = categories();
+    var marks = state.markTypes;
+
+    html += '<div class="summary">' +
+      '<div class="box"><div class="n">' + wordCount + '</div><div class="l">単語</div></div>' +
+      '<div class="box"><div class="n">' + quizCount + '</div><div class="l">問題</div></div>' +
+      '<div class="box"><div class="n">' + state.questions.length + '</div><div class="l">合計</div></div>' +
+      '</div>';
+
+    html += '<div class="card">';
+    html += '<h2>モード</h2><div class="row" id="mode-chips">' +
+      chip('word', '単語帳(表裏)', state.filter.mode === '単語', 'mode', '単語') +
+      chip('quiz', '問題(解答入力)', state.filter.mode === '問題', 'mode', '問題') +
+      '</div></div>';
+
+    html += '<div class="card"><h2>出題順</h2><div class="row" id="order-chips">' +
+      chip('sequential', '順番', state.filter.order === 'sequential', 'order', 'sequential') +
+      chip('random', 'ランダム', state.filter.order === 'random', 'order', 'random') +
+      chip('priority', '苦手/未学習優先', state.filter.order === 'priority', 'order', 'priority') +
+      '</div></div>';
+
+    if (cats.length) {
+      html += '<div class="card"><h2>カテゴリ</h2><div class="row" id="cat-chips">' +
+        chip('all', 'すべて', !state.filter.category, 'category', null);
+      cats.forEach(function (c) {
+        html += chip(c, c, state.filter.category === c, 'category', c);
+      });
+      html += '</div></div>';
+    }
+
+    if (marks.length) {
+      html += '<div class="card"><h2>マークで絞る</h2><div class="row" id="mark-chips">' +
+        chip('all', 'すべて', !state.filter.markType, 'markType', null);
+      marks.forEach(function (m) {
+        html += chip(m, m, state.filter.markType === m, 'markType', m);
+      });
+      html += '</div></div>';
+    }
+
+    var count = filteredQuestions().length;
+    html += '<button class="btn block" id="btn-start" ' + (count === 0 ? 'disabled' : '') + '>' +
+      (count === 0 ? '対象の問題がありません' : '学習開始 (' + count + '問)') + '</button>';
+
+    main.innerHTML = html;
+
+    var deckSelect = document.getElementById('deck-select');
+    if (deckSelect) {
+      deckSelect.addEventListener('change', function (e) {
+        setActiveDeck(e.target.value);
+        state.filter.category = null;
+        state.filter.markType = null;
+        renderHome();
+        refreshAll();
+      });
+    }
+    main.querySelectorAll('[data-chipgroup]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var group = el.dataset.chipgroup, val = el.dataset.val === '__null__' ? null : el.dataset.val;
+        state.filter[group] = val;
+        renderHome();
+      });
+    });
+    var startBtn = document.getElementById('btn-start');
+    if (startBtn) startBtn.addEventListener('click', startSession);
+  }
+
+  function chip(key, label, on, group, val) {
+    return '<span class="chip' + (on ? ' on' : '') + '" data-chipgroup="' + group + '" data-val="' + (val === null ? '__null__' : esc(val)) + '">' + esc(label) + '</span>';
+  }
+
+  function startSession() {
+    var list = filteredQuestions();
+    if (!list.length) return;
+    state.session = { list: list, idx: 0, flipped: false, mode: state.filter.mode, lastResult: null };
+    state.view = 'study';
+    render();
+  }
+
+  function endSession() {
+    state.session = null;
+    state.view = 'home';
+    refreshAll();
+  }
+
+  function renderStudy() {
+    var s = state.session;
+    if (!s) { state.view = 'home'; return render(); }
+    if (s.idx >= s.list.length) {
+      headerTitle.textContent = '完了';
+      main.innerHTML = '<div class="empty">学習お疲れさま！<br><br><button class="btn" id="btn-done">ホームに戻る</button></div>';
+      document.getElementById('btn-done').addEventListener('click', endSession);
+      return;
+    }
+    var q = s.list[s.idx];
+    headerTitle.textContent = (s.idx + 1) + ' / ' + s.list.length;
+
+    var html = '<div class="study-wrap">';
+    if (s.mode === '単語') {
+      html += '<div class="flashcard' + (s.flipped ? ' back' : '') + '" id="flashcard">' +
+        esc(s.flipped ? q.back : q.front) + '</div>';
+      html += '<div class="hint">タップで裏返す</div>';
+      if (s.flipped) {
+        html += '<div class="study-actions">' +
+          '<button class="btn unknown" id="btn-unknown">まだ</button>' +
+          '<button class="btn known" id="btn-known">覚えた</button>' +
+          '</div>';
+      }
+    } else {
+      html += '<div class="card"><div class="quiz-q">' + esc(q.front) + '</div>';
+      if (!s.lastResult) {
+        html += '<label>解答（複数ある場合はカンマ区切り）</label>' +
+          '<input type="text" id="quiz-input" autocomplete="off">' +
+          '<div style="margin-top:12px"><button class="btn block" id="btn-submit">解答する</button></div>';
+      } else {
+        html += '<div class="result-badge ' + s.lastResult + '">' +
+          (s.lastResult === 'correct' ? '○' : s.lastResult === 'partial' ? '△' : '✕') + '</div>' +
+          '<div class="answer-detail">正解: ' + esc(q.back.replace(/\|/g, ' / ')) + '</div>' +
+          '<button class="btn block" id="btn-next">次へ</button>';
+      }
+      html += '</div>';
+    }
+
+    if (state.markTypes.length) {
+      html += '<div class="marks-row">';
+      state.markTypes.forEach(function (m) {
+        var cur = (state.stats[q.id] && state.stats[q.id].marks && state.stats[q.id].marks[m]) || 0;
+        html += '<span class="mark-btn" data-mark="' + esc(m) + '">' + esc(m) + '<span class="cnt">' + cur + '</span></span>';
+      });
+      html += '</div>';
+    }
+
+    html += '<div style="margin-top:20px"><button class="btn secondary block" id="btn-quit">中断してホームへ</button></div>';
+    html += '</div>';
+    main.innerHTML = html;
+
+    document.getElementById('btn-quit').addEventListener('click', endSession);
+    main.querySelectorAll('.mark-btn').forEach(function (el) {
+      el.addEventListener('click', function () { markQuestion(q.id, el.dataset.mark); });
+    });
+
+    if (s.mode === '単語') {
+      var card = document.getElementById('flashcard');
+      card.addEventListener('click', function () { s.flipped = !s.flipped; renderStudy(); });
+      var kb = document.getElementById('btn-known'), ub = document.getElementById('btn-unknown');
+      if (kb) kb.addEventListener('click', function () { recordWord(q.id, 'known'); nextCard(); });
+      if (ub) ub.addEventListener('click', function () { recordWord(q.id, 'unknown'); nextCard(); });
+    } else {
+      var submitBtn = document.getElementById('btn-submit');
+      if (submitBtn) {
+        submitBtn.addEventListener('click', function () { submitQuiz(q); });
+        document.getElementById('quiz-input').addEventListener('keydown', function (e) {
+          if (e.key === 'Enter') submitQuiz(q);
+        });
+        setTimeout(function () {
+          var inp = document.getElementById('quiz-input');
+          if (inp) inp.focus();
+        }, 0);
+      }
+      var nextBtn = document.getElementById('btn-next');
+      if (nextBtn) nextBtn.addEventListener('click', nextCard);
+    }
+  }
+
+  function submitQuiz(q) {
+    var inp = document.getElementById('quiz-input');
+    var result = gradeQuiz(q.back, inp.value);
+    state.session.lastResult = result;
+    api.post('addRecord', { id: q.id, mode: 'quiz', result: result }).catch(function (e) { toast(e.message); });
+    bumpLocalStat(q.id, function (s) {
+      s.attempts++;
+      if (result === 'correct') s.correct++; else if (result === 'partial') s.partial++; else s.wrong++;
+    });
+    renderStudy();
+  }
+
+  function recordWord(id, result) {
+    api.post('addRecord', { id: id, mode: 'word', result: result }).catch(function (e) { toast(e.message); });
+    bumpLocalStat(id, function (s) { s.reviewed++; });
+  }
+
+  function markQuestion(id, markType) {
+    api.post('addMark', { id: id, markType: markType }).catch(function (e) { toast(e.message); });
+    bumpLocalStat(id, function (s) {
+      s.marks = s.marks || {};
+      s.marks[markType] = (s.marks[markType] || 0) + 1;
+    });
+    renderStudy();
+  }
+
+  function bumpLocalStat(id, fn) {
+    if (!state.stats[id]) state.stats[id] = { attempts: 0, correct: 0, partial: 0, wrong: 0, reviewed: 0, marks: {} };
+    fn(state.stats[id]);
+  }
+
+  function nextCard() {
+    state.session.idx++;
+    state.session.flipped = false;
+    state.session.lastResult = null;
+    renderStudy();
+  }
+
+  /* ---------- stats view ---------- */
+  function renderStats() {
+    headerTitle.textContent = '統計';
+    if (!state.questions.length) {
+      main.innerHTML = '<div class="empty">データがありません</div>';
+      return;
+    }
+    var totalAttempts = 0, totalCorrect = 0, totalPartial = 0, totalWrong = 0, totalReviewed = 0;
+    Object.keys(state.stats).forEach(function (id) {
+      var s = state.stats[id];
+      totalAttempts += s.attempts || 0;
+      totalCorrect += s.correct || 0;
+      totalPartial += s.partial || 0;
+      totalWrong += s.wrong || 0;
+      totalReviewed += s.reviewed || 0;
+    });
+    var acc = totalAttempts ? Math.round((totalCorrect / totalAttempts) * 100) : 0;
+
+    var html = '<div class="summary">' +
+      box(totalAttempts, '解答回数') + box(acc + '%', '完答率') + box(totalReviewed, '単語復習回数') +
+      '</div>';
+
+    html += '<div class="card"><h2>判定内訳</h2>' +
+      barRow('○ 完答', totalCorrect, totalAttempts, 'correct') +
+      barRow('△ 一部', totalPartial, totalAttempts, 'partial') +
+      barRow('✕ 不正解', totalWrong, totalAttempts, 'wrong') +
+      '</div>';
+
+    if (state.markTypes.length) {
+      html += '<div class="card"><h2>マーク集計</h2><table><tr><th>マーク</th><th>件数</th></tr>';
+      state.markTypes.forEach(function (m) {
+        var total = 0;
+        Object.keys(state.stats).forEach(function (id) {
+          total += (state.stats[id].marks && state.stats[id].marks[m]) || 0;
+        });
+        html += '<tr><td>' + esc(m) + '</td><td>' + total + '</td></tr>';
+      });
+      html += '</table></div>';
+    }
+
+    var quizRows = state.questions
+      .filter(function (q) { return q.type === '問題'; })
+      .map(function (q) {
+        var s = state.stats[q.id] || { attempts: 0, correct: 0 };
+        var rate = s.attempts ? Math.round((s.correct / s.attempts) * 100) : null;
+        return { q: q, s: s, rate: rate };
+      })
+      .filter(function (r) { return r.s.attempts > 0; })
+      .sort(function (a, b) { return a.rate - b.rate; })
+      .slice(0, 15);
+
+    if (quizRows.length) {
+      html += '<div class="card"><h2>正答率が低い問題</h2><table><tr><th>問題</th><th>正答率</th><th>回数</th></tr>';
+      quizRows.forEach(function (r) {
+        html += '<tr><td>' + esc(truncate(r.q.front, 20)) + '</td><td>' + r.rate + '%</td><td>' + r.s.attempts + '</td></tr>';
+      });
+      html += '</table></div>';
+    }
+
+    main.innerHTML = html;
+  }
+
+  function truncate(s, n) { s = String(s || ''); return s.length > n ? s.slice(0, n) + '…' : s; }
+  function box(n, l) { return '<div class="box"><div class="n">' + n + '</div><div class="l">' + esc(l) + '</div></div>'; }
+  function barRow(label, val, total, cls) {
+    var pct = total ? Math.round((val / total) * 100) : 0;
+    return '<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">' +
+      '<span>' + label + '</span><span>' + val + ' (' + pct + '%)</span></div>' +
+      '<div class="bar-bg"><div class="bar-fg" style="width:' + pct + '%;background:var(--' + cls + ')"></div></div></div>';
+  }
+
+  /* ---------- settings view ---------- */
+  function renderSettings() {
+    headerTitle.textContent = '設定';
+    var html = '';
+
+    html += '<div class="card"><h2>デッキ管理</h2>';
+    if (state.decks.length) {
+      html += '<table><tr><th>名前</th><th>状態</th><th></th></tr>';
+      state.decks.forEach(function (d) {
+        var statusCell = d.id === state.activeDeckId
+          ? '使用中'
+          : '<span class="chip" data-use-deck="' + esc(d.id) + '">切替</span>';
+        html += '<tr><td>' + esc(d.name) + '</td><td>' + statusCell + '</td>' +
+          '<td><span class="chip" data-del-deck="' + esc(d.id) + '">削除</span></td></tr>';
+      });
+      html += '</table>';
+    } else {
+      html += '<div style="font-size:13px;color:var(--sub)">デッキが未登録です。下のフォームから追加してね</div>';
+    }
+    html += '<div style="margin-top:14px">' +
+      '<label>新しいデッキを追加</label>' +
+      '<input type="text" id="new-deck-name" placeholder="デッキ名（例: 英語学習用）" style="margin-bottom:8px">' +
+      '<input type="url" id="new-deck-url" placeholder="Apps Script URL">' +
+      '<div class="row" style="margin-top:10px">' +
+      '<button class="btn secondary" id="btn-test-new-deck">接続テスト</button>' +
+      '<button class="btn secondary" id="btn-add-deck">追加</button>' +
+      '</div></div></div>';
+
+    if (getUrl()) {
+      html += '<div class="card"><h2>マーク種別を追加（' + esc(getActiveDeck().name) + '）</h2>' +
+        '<input type="text" id="marktype-input" placeholder="例: 苦手">' +
+        '<div style="margin-top:10px"><button class="btn secondary" id="btn-add-marktype">追加</button></div>' +
+        '<div class="row" style="margin-top:10px">' + state.markTypes.map(function (m) { return '<span class="chip">' + esc(m) + '</span>'; }).join('') + '</div>' +
+        '</div>';
+
+      html += '<div class="card"><h2>CSVインポート（' + esc(getActiveDeck().name) + '）</h2>' +
+        '<div style="font-size:12px;color:var(--sub);margin-bottom:8px">' +
+        '列: id(空欄可), type(単語 or 問題), front, back, category(任意)。back は複数解答時 | 区切り。' +
+        '</div>' +
+        '<input type="file" id="csv-file" accept=".csv,text/csv">' +
+        '<div style="margin-top:10px"><button class="btn secondary" id="btn-import-csv" disabled>インポート実行</button></div>' +
+        '<div id="csv-preview" style="margin-top:10px;font-size:12px;color:var(--sub)"></div>' +
+        '</div>';
+    }
+
+    main.innerHTML = html;
+
+    main.querySelectorAll('[data-use-deck]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        setActiveDeck(el.dataset.useDeck);
+        toast('切り替えたよ');
+        renderSettings();
+        refreshAll();
+      });
+    });
+    main.querySelectorAll('[data-del-deck]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        if (!confirm('このデッキ登録を削除する？（スプレッドシート自体は削除されません）')) return;
+        var id = el.dataset.delDeck;
+        var decks = loadDecks().filter(function (d) { return d.id !== id; });
+        saveDecks(decks);
+        state.decks = decks;
+        if (state.activeDeckId === id) {
+          setActiveDeck(decks[0] ? decks[0].id : null);
+        }
+        toast('削除したよ');
+        renderSettings();
+        refreshAll();
+      });
+    });
+    document.getElementById('btn-add-deck').addEventListener('click', function () {
+      var name = document.getElementById('new-deck-name').value.trim();
+      var url = document.getElementById('new-deck-url').value.trim();
+      if (!name || !url) { toast('デッキ名とURLを入力して'); return; }
+      var decks = loadDecks();
+      var d = { id: genDeckId(), name: name, url: url };
+      decks.push(d);
+      saveDecks(decks);
+      state.decks = decks;
+      var wasEmpty = !state.activeDeckId;
+      if (wasEmpty) setActiveDeck(d.id);
+      toast('デッキを追加したよ');
+      renderSettings();
+      if (wasEmpty) refreshAll();
+    });
+    document.getElementById('btn-test-new-deck').addEventListener('click', function () {
+      var url = document.getElementById('new-deck-url').value.trim();
+      if (!url) { toast('URLを入力して'); return; }
+      fetch(url + '?action=questions').then(function (r) { return r.json(); }).then(function (j) {
+        if (j.ok) toast('接続OK'); else toast('接続失敗: ' + j.error);
+      }).catch(function (e) { toast('接続失敗: ' + e.message); });
+    });
+
+    var addMarktypeBtn = document.getElementById('btn-add-marktype');
+    if (addMarktypeBtn) {
+      addMarktypeBtn.addEventListener('click', function () {
+        var name = document.getElementById('marktype-input').value.trim();
+        if (!name) return;
+        api.post('addMarkType', { name: name }).then(function () {
+          toast('追加しました');
+          refreshAll();
+        }).catch(function (e) { toast(e.message); });
+      });
+    }
+
+    var csvFileInput = document.getElementById('csv-file');
+    if (csvFileInput) {
+      var parsedRows = null;
+      csvFileInput.addEventListener('change', function (e) {
+        var file = e.target.files[0];
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onload = function () {
+          try {
+            parsedRows = parseCsvToQuestions(reader.result);
+            document.getElementById('csv-preview').textContent = parsedRows.length + '件読み込みました';
+            document.getElementById('btn-import-csv').disabled = false;
+          } catch (err) {
+            document.getElementById('csv-preview').textContent = 'エラー: ' + err.message;
+          }
+        };
+        reader.readAsText(file, 'UTF-8');
+      });
+      document.getElementById('btn-import-csv').addEventListener('click', function () {
+        if (!parsedRows || !parsedRows.length) return;
+        api.post('addQuestions', { questions: parsedRows }).then(function () {
+          toast(parsedRows.length + '件インポートしました');
+          parsedRows = null;
+          document.getElementById('btn-import-csv').disabled = true;
+          document.getElementById('csv-preview').textContent = '';
+          refreshAll();
+        }).catch(function (e) { toast(e.message); });
+      });
+    }
+  }
+
+  /* ---------- csv parsing ---------- */
+  function parseCsvRaw(text) {
+    var rows = [], row = [], field = '', inQuotes = false;
+    text = text.replace(/^﻿/, '');
+    for (var i = 0; i < text.length; i++) {
+      var c = text[i], next = text[i + 1];
+      if (inQuotes) {
+        if (c === '"' && next === '"') { field += '"'; i++; }
+        else if (c === '"') { inQuotes = false; }
+        else { field += c; }
+      } else {
+        if (c === '"') inQuotes = true;
+        else if (c === ',') { row.push(field); field = ''; }
+        else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+        else if (c === '\r') { /* skip */ }
+        else field += c;
+      }
+    }
+    if (field.length || row.length) { row.push(field); rows.push(row); }
+    return rows.filter(function (r) { return r.some(function (c) { return c !== ''; }); });
+  }
+
+  var HEADER_ALIASES = {
+    id: ['id'],
+    type: ['type', '種別', 'タイプ'],
+    front: ['front', '表', '問題', '質問'],
+    back: ['back', '裏', '解答', '答え', '回答'],
+    category: ['category', 'カテゴリ', 'カテゴリー', '分類']
+  };
+
+  function parseCsvToQuestions(text) {
+    var rows = parseCsvRaw(text);
+    if (!rows.length) throw new Error('データがありません');
+    var header = rows[0].map(function (h) { return h.trim(); });
+    var colIndex = {};
+    Object.keys(HEADER_ALIASES).forEach(function (key) {
+      var idx = header.findIndex(function (h) { return HEADER_ALIASES[key].indexOf(h.toLowerCase()) !== -1 || HEADER_ALIASES[key].indexOf(h) !== -1; });
+      colIndex[key] = idx;
+    });
+    if (colIndex.front === -1 || colIndex.back === -1) {
+      throw new Error('front / back 列が見つかりません');
+    }
+    return rows.slice(1).map(function (r) {
+      var type = colIndex.type !== -1 ? r[colIndex.type].trim() : '単語';
+      if (type !== '単語' && type !== '問題') type = '単語';
+      return {
+        id: colIndex.id !== -1 ? r[colIndex.id].trim() : '',
+        type: type,
+        front: r[colIndex.front] || '',
+        back: r[colIndex.back] || '',
+        category: colIndex.category !== -1 ? (r[colIndex.category] || '').trim() : ''
+      };
+    }).filter(function (q) { return q.front; });
+  }
+
+  /* ---------- nav ---------- */
+  document.querySelectorAll('nav.bottom button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      state.view = b.dataset.view;
+      render();
+    });
+  });
+  document.getElementById('btn-refresh').addEventListener('click', function () {
+    toast('更新中...');
+    refreshAll();
+  });
+
+  /* ---------- init ---------- */
+  render();
+  refreshAll();
+})();
+</script>
+</body>
+</html>
