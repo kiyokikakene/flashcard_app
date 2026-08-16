@@ -247,7 +247,11 @@
     var required = String(back || '').split('|').map(function (x) { return x.trim(); }).filter(Boolean);
     var given = splitAnswers(userInput);
     var matched = required.filter(function (req) {
-      return given.some(function (g) { return normalize(g) === normalize(req); });
+      var variants = req.split('/').map(function (x) { return x.trim(); }).filter(Boolean);
+      return given.some(function (g) {
+        var ng = normalize(g);
+        return variants.some(function (v) { return ng === normalize(v); });
+      });
     }).length;
     if (required.length <= 1) {
       return matched >= 1 ? 'correct' : 'wrong';
