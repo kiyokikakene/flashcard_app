@@ -52,6 +52,10 @@ git push
 
 友達など他の利用者がいる場合は、この手順と新しい `Code.gs` の内容（またはリポジトリの [raw リンク](https://raw.githubusercontent.com/kiyokikakene/flashcard_app/main/apps-script/Code.gs)）を伝える必要がある。
 
+## 今後の更新予定
+
+検討中・保留中の案は [ROADMAP.md](ROADMAP.md) を参照。
+
 ## 過去の破壊的変更・移行メモ
 
 ### note列の追加（例文・解説）
