@@ -232,8 +232,13 @@
   }
 
   /* ---------- grading ---------- */
+  function toHiragana(s) {
+    return String(s || '').replace(/[ァ-ヶ]/g, function (c) {
+      return String.fromCharCode(c.charCodeAt(0) - 0x60);
+    });
+  }
   function normalize(s) {
-    return String(s || '').trim().toLowerCase().replace(/\s+/g, '');
+    return toHiragana(String(s || '').trim().toLowerCase().replace(/\s+/g, ''));
   }
   function splitAnswers(s) {
     return String(s || '').split(/[,、]/).map(function (x) { return x.trim(); }).filter(Boolean);
