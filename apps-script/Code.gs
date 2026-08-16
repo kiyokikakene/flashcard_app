@@ -16,7 +16,7 @@ var SHEET_MARKS = 'Marks';
 var SHEET_MARK_TYPES = 'MarkTypes';
 
 var HEADERS = {
-  Questions: ['id', 'front', 'back', 'category'],
+  Questions: ['id', 'front', 'back', 'category', 'note'],
   Records: ['timestamp', 'id', 'result'],
   Marks: ['timestamp', 'id', 'markType'],
   MarkTypes: ['name']
@@ -155,7 +155,7 @@ function addQuestions_(payload) {
   var questions = payload.questions || [];
   questions.forEach(function (q) {
     var id = q.id && String(q.id).trim() ? q.id : Utilities.getUuid();
-    sheet.appendRow([id, q.front, q.back, q.category || '']);
+    sheet.appendRow([id, q.front, q.back, q.category || '', q.note || '']);
   });
 }
 

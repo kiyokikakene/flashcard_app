@@ -89,6 +89,7 @@
   .result-badge.partial { color: var(--partial); }
   .result-badge.wrong { color: var(--wrong); }
   .answer-detail { font-size: 14px; color: var(--sub); text-align: center; margin-bottom: 10px; }
+  .note-box { font-size: 13px; line-height: 1.6; color: var(--text); background: var(--bg-soft, #f5f5f7); border-radius: 10px; padding: 10px 12px; margin: 10px 0; white-space: pre-wrap; }
   .marks-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
   .mark-btn { font-size: 12px; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); background: #fff; cursor: pointer; }
   .mark-btn.on { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 700; }
@@ -260,6 +261,11 @@
     if (matched > 0) return 'partial';
     return 'wrong';
   }
+  function formatBack(back) {
+    return String(back || '').split('|').map(function (part) {
+      return part.split('/').map(function (v) { return v.trim(); }).filter(Boolean).join('・');
+    }).join(' / ');
+  }
 
   /* ---------- priority score for 苦手優先 (問題モードの正答率を横断的に使う) ---------- */
   function priorityScore(q) {
@@ -427,8 +433,11 @@
     var html = '<div class="study-wrap">';
     if (s.mode === '単語') {
       html += '<div class="flashcard' + (s.flipped ? ' back' : '') + '" id="flashcard">' +
-        esc(s.flipped ? q.back : q.front) + '</div>';
+        esc(s.flipped ? formatBack(q.back) : q.front) + '</div>';
       html += '<div class="hint">タップで裏返す</div>';
+      if (s.flipped && q.note) {
+        html += '<div class="note-box">' + esc(q.note) + '</div>';
+      }
       html += '<div class="study-actions"><button class="btn block" id="btn-next-word">次へ</button></div>';
     } else {
       html += '<div class="card"><div class="quiz-q">' + esc(q.front) + '</div>';
@@ -439,7 +448,8 @@
       } else {
         html += '<div class="result-badge ' + s.lastResult + '">' +
           (s.lastResult === 'correct' ? '○' : s.lastResult === 'partial' ? '△' : '✕') + '</div>' +
-          '<div class="answer-detail">正解: ' + esc(q.back.replace(/\|/g, ' / ')) + '</div>' +
+          '<div class="answer-detail">正解: ' + esc(formatBack(q.back)) + '</div>' +
+          (q.note ? '<div class="note-box">' + esc(q.note) + '</div>' : '') +
           '<button class="btn block" id="btn-next">次へ</button>';
       }
       html += '</div>';
@@ -624,7 +634,7 @@
 
       html += '<div class="card"><h2>CSVインポート（' + esc(getActiveDeck().name) + '）</h2>' +
         '<div style="font-size:12px;color:var(--sub);margin-bottom:8px">' +
-        '列: id(空欄可), front, back, category(任意)。back は複数解答時 | 区切り。' +
+        '列: id(空欄可), front, back, category(任意), note(任意・解説や例文)。back は複数解答時 | 区切り、別解は / 区切り。' +
         '</div>' +
         '<input type="file" id="csv-file" accept=".csv,text/csv">' +
         '<div style="margin-top:10px"><button class="btn secondary" id="btn-import-csv" disabled>インポート実行</button></div>' +
@@ -749,7 +759,8 @@
     id: ['id'],
     front: ['front', '表', '問題', '質問'],
     back: ['back', '裏', '解答', '答え', '回答'],
-    category: ['category', 'カテゴリ', 'カテゴリー', '分類']
+    category: ['category', 'カテゴリ', 'カテゴリー', '分類'],
+    note: ['note', '解説', 'メモ', '例文']
   };
 
   function parseCsvToQuestions(text) {
@@ -769,7 +780,8 @@
         id: colIndex.id !== -1 ? r[colIndex.id].trim() : '',
         front: r[colIndex.front] || '',
         back: r[colIndex.back] || '',
-        category: colIndex.category !== -1 ? (r[colIndex.category] || '').trim() : ''
+        category: colIndex.category !== -1 ? (r[colIndex.category] || '').trim() : '',
+        note: colIndex.note !== -1 ? (r[colIndex.note] || '').trim() : ''
       };
     }).filter(function (q) { return q.front; });
   }
