@@ -91,9 +91,9 @@ function doPost(e) {
       addRecord_(body.payload);
       return jsonOut_({ ok: true });
     }
-    if (action === 'addMark') {
-      addMark_(body.payload);
-      return jsonOut_({ ok: true });
+    if (action === 'toggleMark') {
+      var result = toggleMark_(body.payload);
+      return jsonOut_({ ok: true, marked: result.marked });
     }
     if (action === 'addQuestions') {
       addQuestions_(body.payload);
@@ -129,9 +129,17 @@ function addRecord_(payload) {
   sheet.appendRow([new Date(), payload.id, payload.result]);
 }
 
-function addMark_(payload) {
+function toggleMark_(payload) {
   var sheet = getSheet_(SHEET_MARKS);
+  var values = sheet.getDataRange().getValues();
+  for (var i = values.length - 1; i >= 1; i--) {
+    if (String(values[i][1]) === String(payload.id) && values[i][2] === payload.markType) {
+      sheet.deleteRow(i + 1);
+      return { marked: false };
+    }
+  }
   sheet.appendRow([new Date(), payload.id, payload.markType]);
+  return { marked: true };
 }
 
 function addMarkType_(payload) {
@@ -190,7 +198,7 @@ function getStats_() {
 
   marks.forEach(function (m) {
     var s = ensure(m.id);
-    s.marks[m.markType] = (s.marks[m.markType] || 0) + 1;
+    s.marks[m.markType] = true;
   });
 
   return stats;

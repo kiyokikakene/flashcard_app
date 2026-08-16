@@ -91,7 +91,7 @@
   .answer-detail { font-size: 14px; color: var(--sub); text-align: center; margin-bottom: 10px; }
   .marks-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
   .mark-btn { font-size: 12px; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); background: #fff; cursor: pointer; }
-  .mark-btn .cnt { color: var(--accent); font-weight: 700; margin-left: 4px; }
+  .mark-btn.on { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 700; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--border); }
   .bar-bg { background: var(--accent-weak); border-radius: 4px; height: 8px; overflow: hidden; }
@@ -271,7 +271,7 @@
     if (state.filter.markType) {
       list = list.filter(function (q) {
         var s = state.stats[q.id];
-        return s && s.marks && s.marks[state.filter.markType] > 0;
+        return !!(s && s.marks && s.marks[state.filter.markType]);
       });
     }
     if (state.filter.order === 'random') {
@@ -439,8 +439,8 @@
     if (state.markTypes.length) {
       html += '<div class="marks-row">';
       state.markTypes.forEach(function (m) {
-        var cur = (state.stats[q.id] && state.stats[q.id].marks && state.stats[q.id].marks[m]) || 0;
-        html += '<span class="mark-btn" data-mark="' + esc(m) + '">' + esc(m) + '<span class="cnt">' + cur + '</span></span>';
+        var on = !!(state.stats[q.id] && state.stats[q.id].marks && state.stats[q.id].marks[m]);
+        html += '<span class="mark-btn' + (on ? ' on' : '') + '" data-mark="' + esc(m) + '">' + (on ? '✓ ' : '') + esc(m) + '</span>';
       });
       html += '</div>';
     }
@@ -488,12 +488,13 @@
   }
 
   function markQuestion(id, markType) {
-    api.post('addMark', { id: id, markType: markType }).catch(function (e) { toast(e.message); });
-    bumpLocalStat(id, function (s) {
-      s.marks = s.marks || {};
-      s.marks[markType] = (s.marks[markType] || 0) + 1;
-    });
-    renderStudy();
+    api.post('toggleMark', { id: id, markType: markType }).then(function (res) {
+      bumpLocalStat(id, function (s) {
+        s.marks = s.marks || {};
+        s.marks[markType] = res.marked;
+      });
+      renderStudy();
+    }).catch(function (e) { toast(e.message); });
   }
 
   function bumpLocalStat(id, fn) {
@@ -540,7 +541,7 @@
       state.markTypes.forEach(function (m) {
         var total = 0;
         Object.keys(state.stats).forEach(function (id) {
-          total += (state.stats[id].marks && state.stats[id].marks[m]) || 0;
+          if (state.stats[id].marks && state.stats[id].marks[m]) total += 1;
         });
         html += '<tr><td>' + esc(m) + '</td><td>' + total + '</td></tr>';
       });
