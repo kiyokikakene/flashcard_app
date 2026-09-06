@@ -177,7 +177,7 @@
     questions: [],
     stats: {},
     markTypes: [],
-    filter: { category: null, markType: null, mode: '単語', order: 'sequential' },
+    filter: { category: null, markType: null, mode: '単語', order: 'sequential', direction: 'f2b' },
     session: null
   };
   if (!state.activeDeckId && state.decks.length) {
@@ -273,6 +273,9 @@
       return variants[0] || '';
     }).join(' / ');
   }
+  // 出題方向（表→裏 / 裏→表）に応じて「出題する側」「答えさせる側」を切り替える
+  function promptOf(q, dir) { return dir === 'b2f' ? q.back : q.front; }
+  function answerOf(q, dir) { return dir === 'b2f' ? q.front : q.back; }
 
   /* ---------- priority score for 苦手優先 (問題モードの正答率を横断的に使う) ---------- */
   function priorityScore(q) {
@@ -356,6 +359,12 @@
       chip('quiz', '問題(解答入力)', state.filter.mode === '問題', 'mode', '問題') +
       '</div></div>';
 
+    html += '<div class="card"><h2>出題方向</h2><div class="row" id="direction-chips">' +
+      chip('f2b', '表→裏', state.filter.direction === 'f2b', 'direction', 'f2b') +
+      chip('b2f', '裏→表', state.filter.direction === 'b2f', 'direction', 'b2f') +
+      chip('random', 'ランダム', state.filter.direction === 'random', 'direction', 'random') +
+      '</div></div>';
+
     html += '<div class="card"><h2>出題順</h2><div class="row" id="order-chips">' +
       chip('sequential', '順番', state.filter.order === 'sequential', 'order', 'sequential') +
       chip('random', 'ランダム', state.filter.order === 'random', 'order', 'random') +
@@ -411,10 +420,16 @@
     return '<span class="chip' + (on ? ' on' : '') + '" data-chipgroup="' + group + '" data-val="' + (val === null ? '__null__' : esc(val)) + '">' + esc(label) + '</span>';
   }
 
+  function resolveDirection(direction) {
+    if (direction === 'random') return Math.random() < 0.5 ? 'f2b' : 'b2f';
+    return direction;
+  }
+
   function startSession() {
     var list = filteredQuestions();
     if (!list.length) return;
-    state.session = { list: list, idx: 0, flipped: false, mode: state.filter.mode, lastResult: null };
+    var dirs = list.map(function () { return resolveDirection(state.filter.direction); });
+    state.session = { list: list, dirs: dirs, idx: 0, flipped: false, mode: state.filter.mode, lastResult: null };
     state.view = 'study';
     render();
   }
@@ -435,19 +450,23 @@
       return;
     }
     var q = s.list[s.idx];
+    var dir = s.dirs[s.idx];
     headerTitle.textContent = (s.idx + 1) + ' / ' + s.list.length;
 
     var html = '<div class="study-wrap">';
+    if (state.filter.direction === 'random') {
+      html += '<div class="hint">今回は' + (dir === 'b2f' ? '裏→表' : '表→裏') + '</div>';
+    }
     if (s.mode === '単語') {
       html += '<div class="flashcard' + (s.flipped ? ' back' : '') + '" id="flashcard">' +
-        esc(s.flipped ? pickPrimary(q.back) : pickPrimary(q.front)) + '</div>';
+        esc(s.flipped ? pickPrimary(answerOf(q, dir)) : pickPrimary(promptOf(q, dir))) + '</div>';
       html += '<div class="hint">タップで裏返す</div>';
       if (s.flipped && q.note) {
         html += '<div class="note-box">' + esc(q.note) + '</div>';
       }
       html += '<div class="study-actions"><button class="btn block" id="btn-next-word">次へ</button></div>';
     } else {
-      html += '<div class="card"><div class="quiz-q">' + esc(pickPrimary(q.front)) + '</div>';
+      html += '<div class="card"><div class="quiz-q">' + esc(pickPrimary(promptOf(q, dir))) + '</div>';
       if (!s.lastResult) {
         html += '<label>解答（複数ある場合はカンマ区切り）</label>' +
           '<input type="text" id="quiz-input" autocomplete="off">' +
@@ -455,7 +474,7 @@
       } else {
         html += '<div class="result-badge ' + s.lastResult + '">' +
           (s.lastResult === 'correct' ? '○' : s.lastResult === 'partial' ? '△' : '✕') + '</div>' +
-          '<div class="answer-detail">正解: ' + esc(formatBack(q.back)) + '</div>' +
+          '<div class="answer-detail">正解: ' + esc(formatBack(answerOf(q, dir))) + '</div>' +
           (q.note ? '<div class="note-box">' + esc(q.note) + '</div>' : '') +
           '<button class="btn block" id="btn-next">次へ</button>';
       }
@@ -503,7 +522,8 @@
 
   function submitQuiz(q) {
     var inp = document.getElementById('quiz-input');
-    var result = gradeQuiz(q.back, inp.value);
+    var dir = state.session.dirs[state.session.idx];
+    var result = gradeQuiz(answerOf(q, dir), inp.value);
     state.session.lastResult = result;
     api.post('addRecord', { id: q.id, result: result }).catch(function (e) { toast(e.message); });
     bumpLocalStat(q.id, function (s) {
