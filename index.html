@@ -326,6 +326,9 @@
   function filteredQuestions() {
     var list = state.questions.slice();
     if (state.filter.category) list = list.filter(function (q) { return q.category === state.filter.category; });
+    // 裏→表固定のときは、reversible=Nの問題を出題対象から完全に除外する
+    // （ランダムのときは個別に表→裏へフォールバックするだけで、プール自体は絞らない）
+    if (state.filter.direction === 'b2f') list = list.filter(isReversible);
     if (state.filter.markType) {
       list = list.filter(function (q) {
         var s = state.stats[q.id];
