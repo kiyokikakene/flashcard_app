@@ -729,8 +729,10 @@
       });
       document.getElementById('btn-import-csv').addEventListener('click', function () {
         if (!parsedRows || !parsedRows.length) return;
-        api.post('addQuestions', { questions: parsedRows }).then(function () {
-          toast(parsedRows.length + '件インポートしました');
+        api.post('addQuestions', { questions: parsedRows }).then(function (res) {
+          var msg = res.added + '件インポートしました';
+          if (res.skipped) msg += '（重複' + res.skipped + '件はスキップ）';
+          toast(msg);
           parsedRows = null;
           document.getElementById('btn-import-csv').disabled = true;
           document.getElementById('csv-preview').textContent = '';

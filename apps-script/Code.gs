@@ -96,8 +96,8 @@ function doPost(e) {
       return jsonOut_({ ok: true, marked: result.marked });
     }
     if (action === 'addQuestions') {
-      addQuestions_(body.payload);
-      return jsonOut_({ ok: true });
+      var addResult = addQuestions_(body.payload);
+      return jsonOut_({ ok: true, added: addResult.added, skipped: addResult.skipped });
     }
     if (action === 'addMarkType') {
       addMarkType_(body.payload);
@@ -150,13 +150,32 @@ function addMarkType_(payload) {
   }
 }
 
+function questionDupKey_(q) {
+  return JSON.stringify([q.front, q.back, q.category, q.note].map(function (v) {
+    return String(v || '').trim();
+  }));
+}
+
 function addQuestions_(payload) {
   var sheet = getSheet_(SHEET_QUESTIONS);
   var questions = payload.questions || [];
+  var existingKeys = {};
+  sheetToObjects_(sheet).forEach(function (q) { existingKeys[questionDupKey_(q)] = true; });
+
+  var added = 0;
+  var skipped = 0;
   questions.forEach(function (q) {
+    var key = questionDupKey_(q);
+    if (existingKeys[key]) {
+      skipped++;
+      return;
+    }
     var id = q.id && String(q.id).trim() ? q.id : Utilities.getUuid();
     sheet.appendRow([id, q.front, q.back, q.category || '', q.note || '']);
+    existingKeys[key] = true;
+    added++;
   });
+  return { added: added, skipped: skipped };
 }
 
 function deleteQuestion_(payload) {
