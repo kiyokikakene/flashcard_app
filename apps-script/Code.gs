@@ -39,6 +39,23 @@ function getSheet_(name) {
   return sheet;
 }
 
+function getHeaderRow_(sheet) {
+  var lastCol = sheet.getLastColumn();
+  if (lastCol < 1) return [];
+  return sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+}
+
+// 列名をキーにしたオブジェクトを、実際のシートのヘッダー行の並びに合わせて1行追記する。
+// appendRow([...])による位置決め打ちだと、シート側の列構成がコードの想定とズレたときに
+// （例: 昔のバージョンで作られた列が残っている等）値が別の列にずれて書き込まれてしまう
+// (「timestamp,id,mode,result」の4列シートに3値appendRowして result が mode 列に入っていた不具合)。
+function appendByHeader_(sheet, obj) {
+  var headers = getHeaderRow_(sheet);
+  if (!headers.length) headers = Object.keys(obj);
+  var row = headers.map(function (h) { return (h in obj) ? obj[h] : ''; });
+  sheet.appendRow(row);
+}
+
 function sheetToObjects_(sheet) {
   var values = sheet.getDataRange().getValues();
   if (values.length < 2) return [];
@@ -126,19 +143,23 @@ function getMarkTypes_() {
 
 function addRecord_(payload) {
   var sheet = getSheet_(SHEET_RECORDS);
-  sheet.appendRow([new Date(), payload.id, payload.result]);
+  appendByHeader_(sheet, { timestamp: new Date(), id: payload.id, result: payload.result });
 }
 
 function toggleMark_(payload) {
   var sheet = getSheet_(SHEET_MARKS);
+  var headers = getHeaderRow_(sheet);
+  var idCol = headers.indexOf('id');
+  var typeCol = headers.indexOf('markType');
   var values = sheet.getDataRange().getValues();
   for (var i = values.length - 1; i >= 1; i--) {
-    if (String(values[i][1]) === String(payload.id) && values[i][2] === payload.markType) {
+    if (idCol !== -1 && typeCol !== -1 &&
+        String(values[i][idCol]) === String(payload.id) && values[i][typeCol] === payload.markType) {
       sheet.deleteRow(i + 1);
       return { marked: false };
     }
   }
-  sheet.appendRow([new Date(), payload.id, payload.markType]);
+  appendByHeader_(sheet, { timestamp: new Date(), id: payload.id, markType: payload.markType });
   return { marked: true };
 }
 
@@ -146,7 +167,7 @@ function addMarkType_(payload) {
   var sheet = getSheet_(SHEET_MARK_TYPES);
   var existing = getMarkTypes_();
   if (existing.indexOf(payload.name) === -1) {
-    sheet.appendRow([payload.name]);
+    appendByHeader_(sheet, { name: payload.name });
   }
 }
 
@@ -171,7 +192,7 @@ function addQuestions_(payload) {
       return;
     }
     var id = q.id && String(q.id).trim() ? q.id : Utilities.getUuid();
-    sheet.appendRow([id, q.front, q.back, q.category || '', q.note || '', q.reversible || '']);
+    appendByHeader_(sheet, { id: id, front: q.front, back: q.back, category: q.category || '', note: q.note || '', reversible: q.reversible || '' });
     existingKeys[key] = true;
     added++;
   });
@@ -180,9 +201,11 @@ function addQuestions_(payload) {
 
 function deleteQuestion_(payload) {
   var sheet = getSheet_(SHEET_QUESTIONS);
+  var headers = getHeaderRow_(sheet);
+  var idCol = headers.indexOf('id');
   var values = sheet.getDataRange().getValues();
   for (var i = values.length - 1; i >= 1; i--) {
-    if (String(values[i][0]) === String(payload.id)) {
+    if (idCol !== -1 && String(values[i][idCol]) === String(payload.id)) {
       sheet.deleteRow(i + 1);
       break;
     }
