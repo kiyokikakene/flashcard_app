@@ -208,10 +208,14 @@
     get: function (action) {
       var url = getUrl();
       if (!url) return Promise.reject(new Error('Apps Script URLが未設定です'));
-      return fetch(url + '?action=' + action).then(function (r) { return r.json(); }).then(function (j) {
-        if (!j.ok) throw new Error(j.error || 'unknown error');
-        return j.data;
-      });
+      // action=stats等は毎回同じURLになるため、ブラウザやネットワーク経路にキャッシュされて
+      // 古い結果が返り続けることがある（更新ボタンを押してもエラーなく数字が変わらない不具合の原因）。
+      // no-storeに加えてタイムスタンプでURLを毎回変え、キャッシュを確実に迂回する。
+      return fetch(url + '?action=' + action + '&_=' + Date.now(), { cache: 'no-store' })
+        .then(function (r) { return r.json(); }).then(function (j) {
+          if (!j.ok) throw new Error(j.error || 'unknown error');
+          return j.data;
+        });
     },
     post: function (action, payload) {
       var url = getUrl();
