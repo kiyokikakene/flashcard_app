@@ -187,6 +187,23 @@
   loadCacheForActiveDeck();
 
   /* ---------- api ---------- */
+  // 送信中(未完了)のPOSTを追跡する。addRecord等が完了する前にrefreshAllのGETが先に
+  // 走ってしまうと、直前の解答が反映されないまま古い統計で上書きされてしまうため
+  // (「正解したのに0%と表示される」の原因)、refreshAll側でこれの完了を待ってから取得する。
+  var pendingWrites = [];
+  function trackPendingWrite(p) {
+    pendingWrites.push(p);
+    var settled = p.then(function () {}, function () {});
+    settled.then(function () {
+      var i = pendingWrites.indexOf(p);
+      if (i !== -1) pendingWrites.splice(i, 1);
+    });
+  }
+  function waitForPendingWrites() {
+    if (!pendingWrites.length) return Promise.resolve();
+    return Promise.all(pendingWrites.map(function (p) { return p.then(function () {}, function () {}); }));
+  }
+
   var api = {
     get: function (action) {
       var url = getUrl();
@@ -199,7 +216,7 @@
     post: function (action, payload) {
       var url = getUrl();
       if (!url) return Promise.reject(new Error('Apps Script URLが未設定です'));
-      return fetch(url, {
+      var p = fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ action: action, payload: payload })
@@ -207,6 +224,8 @@
         if (!j.ok) throw new Error(j.error || 'unknown error');
         return j;
       });
+      trackPendingWrite(p);
+      return p;
     }
   };
 
@@ -219,7 +238,10 @@
 
   function refreshAll() {
     if (!getUrl()) return Promise.resolve();
-    return Promise.all([api.get('questions'), api.get('stats'), api.get('markTypes')])
+    return waitForPendingWrites()
+      .then(function () {
+        return Promise.all([api.get('questions'), api.get('stats'), api.get('markTypes')]);
+      })
       .then(function (r) {
         state.questions = r[0] || [];
         state.stats = r[1] || {};
