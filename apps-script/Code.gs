@@ -16,7 +16,7 @@ var SHEET_MARKS = 'Marks';
 var SHEET_MARK_TYPES = 'MarkTypes';
 
 var HEADERS = {
-  Questions: ['id', 'front', 'back', 'category', 'note'],
+  Questions: ['id', 'front', 'back', 'category', 'note', 'reversible'],
   Records: ['timestamp', 'id', 'result'],
   Marks: ['timestamp', 'id', 'markType'],
   MarkTypes: ['name']
@@ -151,7 +151,7 @@ function addMarkType_(payload) {
 }
 
 function questionDupKey_(q) {
-  return JSON.stringify([q.front, q.back, q.category, q.note].map(function (v) {
+  return JSON.stringify([q.front, q.back, q.category, q.note, q.reversible].map(function (v) {
     return String(v || '').trim();
   }));
 }
@@ -171,7 +171,7 @@ function addQuestions_(payload) {
       return;
     }
     var id = q.id && String(q.id).trim() ? q.id : Utilities.getUuid();
-    sheet.appendRow([id, q.front, q.back, q.category || '', q.note || '']);
+    sheet.appendRow([id, q.front, q.back, q.category || '', q.note || '', q.reversible || '']);
     existingKeys[key] = true;
     added++;
   });

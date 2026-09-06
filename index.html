@@ -276,6 +276,13 @@
   // 出題方向（表→裏 / 裏→表）に応じて「出題する側」「答えさせる側」を切り替える
   function promptOf(q, dir) { return dir === 'b2f' ? q.back : q.front; }
   function answerOf(q, dir) { return dir === 'b2f' ? q.front : q.back; }
+  // reversible列: 「三大都市圏を全て挙げよ」のような自然文の設問は裏→表にすると成立しないため、
+  // 個別に裏→表を禁止できるフラグ。未指定（空欄）はデフォルトでOK扱い、N系の値だけ非対応にする
+  function isReversible(q) {
+    var v = String(q.reversible || '').trim().toLowerCase();
+    if (!v) return true;
+    return ['n', 'no', 'false', '0', '×', 'ng'].indexOf(v) === -1;
+  }
 
   /* ---------- priority score for 苦手優先 (問題モードの正答率を横断的に使う) ---------- */
   function priorityScore(q) {
@@ -420,15 +427,17 @@
     return '<span class="chip' + (on ? ' on' : '') + '" data-chipgroup="' + group + '" data-val="' + (val === null ? '__null__' : esc(val)) + '">' + esc(label) + '</span>';
   }
 
-  function resolveDirection(direction) {
+  function resolveDirection(direction, q) {
+    if (direction === 'f2b') return 'f2b';
+    if (!isReversible(q)) return 'f2b'; // 裏→表非対応の問題は強制的に表→裏にフォールバック
     if (direction === 'random') return Math.random() < 0.5 ? 'f2b' : 'b2f';
-    return direction;
+    return direction; // 'b2f'
   }
 
   function startSession() {
     var list = filteredQuestions();
     if (!list.length) return;
-    var dirs = list.map(function () { return resolveDirection(state.filter.direction); });
+    var dirs = list.map(function (q) { return resolveDirection(state.filter.direction, q); });
     state.session = { list: list, dirs: dirs, idx: 0, flipped: false, mode: state.filter.mode, lastResult: null };
     state.view = 'study';
     render();
@@ -454,8 +463,11 @@
     headerTitle.textContent = (s.idx + 1) + ' / ' + s.list.length;
 
     var html = '<div class="study-wrap">';
-    if (state.filter.direction === 'random') {
-      html += '<div class="hint">今回は' + (dir === 'b2f' ? '裏→表' : '表→裏') + '</div>';
+    var globalDir = state.filter.direction;
+    var forcedF2b = globalDir !== 'f2b' && dir === 'f2b' && !isReversible(q);
+    if (globalDir === 'random' || forcedF2b) {
+      var dirLabel = forcedF2b ? '裏→表非対応のため表→裏' : (dir === 'b2f' ? '裏→表' : '表→裏');
+      html += '<div class="hint">今回は' + dirLabel + '</div>';
     }
     if (s.mode === '単語') {
       html += '<div class="flashcard' + (s.flipped ? ' back' : '') + '" id="flashcard">' +
@@ -661,7 +673,7 @@
 
       html += '<div class="card"><h2>CSVインポート（' + esc(getActiveDeck().name) + '）</h2>' +
         '<div style="font-size:12px;color:var(--sub);margin-bottom:8px">' +
-        '列: id(空欄可), front, back, category(任意), note(任意・解説や例文)。back は複数解答時 | 区切り、別解は / 区切り。' +
+        '列: id(空欄可), front, back, category(任意), note(任意・解説や例文), reversible(任意・裏→表出題を禁止したい場合はN)。back/front とも複数解答時 | 区切り、別解は / 区切り。' +
         '</div>' +
         '<input type="file" id="csv-file" accept=".csv,text/csv">' +
         '<div style="margin-top:10px"><button class="btn secondary" id="btn-import-csv" disabled>インポート実行</button></div>' +
@@ -789,7 +801,8 @@
     front: ['front', '表', '問題', '質問'],
     back: ['back', '裏', '解答', '答え', '回答'],
     category: ['category', 'カテゴリ', 'カテゴリー', '分類'],
-    note: ['note', '解説', 'メモ', '例文']
+    note: ['note', '解説', 'メモ', '例文'],
+    reversible: ['reversible', '裏表対応', '逆出題']
   };
 
   function parseCsvToQuestions(text) {
@@ -810,7 +823,8 @@
         front: r[colIndex.front] || '',
         back: r[colIndex.back] || '',
         category: colIndex.category !== -1 ? (r[colIndex.category] || '').trim() : '',
-        note: colIndex.note !== -1 ? (r[colIndex.note] || '').trim() : ''
+        note: colIndex.note !== -1 ? (r[colIndex.note] || '').trim() : '',
+        reversible: colIndex.reversible !== -1 ? (r[colIndex.reversible] || '').trim() : ''
       };
     }).filter(function (q) { return q.front; });
   }
