@@ -266,9 +266,9 @@
       return part.split('/').map(function (v) { return v.trim(); }).filter(Boolean).join('・');
     }).join(' / ');
   }
-  // 単語帳モードの裏面表示専用: 別解を全部並べず、各スロットの代表解（/区切りの先頭）だけを見せる
-  function displayBack(back) {
-    return String(back || '').split('|').map(function (part) {
+  // front/back共通の表示用: 別解（/区切り）を全部並べず、各スロットの代表解（先頭の値）だけを見せる
+  function pickPrimary(s) {
+    return String(s || '').split('|').map(function (part) {
       var variants = part.split('/').map(function (v) { return v.trim(); }).filter(Boolean);
       return variants[0] || '';
     }).join(' / ');
@@ -440,14 +440,14 @@
     var html = '<div class="study-wrap">';
     if (s.mode === '単語') {
       html += '<div class="flashcard' + (s.flipped ? ' back' : '') + '" id="flashcard">' +
-        esc(s.flipped ? displayBack(q.back) : q.front) + '</div>';
+        esc(s.flipped ? pickPrimary(q.back) : pickPrimary(q.front)) + '</div>';
       html += '<div class="hint">タップで裏返す</div>';
       if (s.flipped && q.note) {
         html += '<div class="note-box">' + esc(q.note) + '</div>';
       }
       html += '<div class="study-actions"><button class="btn block" id="btn-next-word">次へ</button></div>';
     } else {
-      html += '<div class="card"><div class="quiz-q">' + esc(q.front) + '</div>';
+      html += '<div class="card"><div class="quiz-q">' + esc(pickPrimary(q.front)) + '</div>';
       if (!s.lastResult) {
         html += '<label>解答（複数ある場合はカンマ区切り）</label>' +
           '<input type="text" id="quiz-input" autocomplete="off">' +
@@ -587,7 +587,7 @@
     if (quizRows.length) {
       html += '<div class="card"><h2>正答率が低い問題</h2><table><tr><th>問題</th><th>正答率</th><th>回数</th></tr>';
       quizRows.forEach(function (r) {
-        html += '<tr><td>' + esc(truncate(r.q.front, 20)) + '</td><td>' + r.rate + '%</td><td>' + r.s.attempts + '</td></tr>';
+        html += '<tr><td>' + esc(truncate(pickPrimary(r.q.front), 20)) + '</td><td>' + r.rate + '%</td><td>' + r.s.attempts + '</td></tr>';
       });
       html += '</table></div>';
     }
