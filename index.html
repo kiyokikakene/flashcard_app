@@ -266,6 +266,13 @@
       return part.split('/').map(function (v) { return v.trim(); }).filter(Boolean).join('・');
     }).join(' / ');
   }
+  // 単語帳モードの裏面表示専用: 別解を全部並べず、各スロットの代表解（/区切りの先頭）だけを見せる
+  function displayBack(back) {
+    return String(back || '').split('|').map(function (part) {
+      var variants = part.split('/').map(function (v) { return v.trim(); }).filter(Boolean);
+      return variants[0] || '';
+    }).join(' / ');
+  }
 
   /* ---------- priority score for 苦手優先 (問題モードの正答率を横断的に使う) ---------- */
   function priorityScore(q) {
@@ -433,7 +440,7 @@
     var html = '<div class="study-wrap">';
     if (s.mode === '単語') {
       html += '<div class="flashcard' + (s.flipped ? ' back' : '') + '" id="flashcard">' +
-        esc(s.flipped ? formatBack(q.back) : q.front) + '</div>';
+        esc(s.flipped ? displayBack(q.back) : q.front) + '</div>';
       html += '<div class="hint">タップで裏返す</div>';
       if (s.flipped && q.note) {
         html += '<div class="note-box">' + esc(q.note) + '</div>';
